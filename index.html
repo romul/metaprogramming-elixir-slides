@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Метапрограммирование в Elixir</title>
+    <link rel="stylesheet" href="components/reveal.js/css/reveal.css">
+    <link rel="stylesheet" href="components/reveal.js/css/theme/serif.css">
+    <link rel="stylesheet" href="components/reveal.js/lib/css/zenburn.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="css/main.css">
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h2>Метапрограммирование в Elixir</h2><br>
+          <h3>Роман Смирнов</h3>
+          <h4>Системный архитектор @<a href="http://convead.ru" target="_blank">Convead</a></h4>
+          <h4><i class="fa fa-github fa-margin"></i><a href="https://github.com/romul" target="_blank">romul</a></h4>
+        </section>
+        <section>
+          <h2>Что такое метапрограммирование?</h2>
+          <blockquote style="width:100%">Создание программ, которые порождают другие программы как результат своей работы (на стадии компиляции), либо программ, которые меняют себя во время выполнения (самомодифицирующийся код).</blockquote>
+          <p>© Wikipedia</p>
+        </section>
+        <section>
+          <h2>Какие есть виды метапрограммирования?</h2>
+          <ul>
+            <li>Препроцессорные директивы и макросы (C, C++)</li>
+            <li>Рефлексия (C#, Java)</li>
+            <li>Динамическая модификация кода (Ruby, Python)</li>
+            <li>Макросы, манипулирующие AST (Lisp, Elixir)</li>
+          </ul>
+        </section>
+        <section>
+          <section>
+            <h2>AST - Abstract Syntax Tree</h2>
+            <blockquote style="width:100%">Конечное, ориентированное дерево, в котором внутренние вершины сопоставлены с операторами ЯП, а листья — с соответствующими операндами.</blockquote>
+            <p>© Wikipedia</p>
+            <div><img src="images/ast.png" style="border: 0px">
+              <pre><code class="elixir">b*b - 4*a*c</code></pre>
+            </div>
+          </section>
+        </section>
+        <section>
+          <h2>Зачем нужны AST-макросы?</h2>
+          <ul>
+            <li>Автогерация boilerplate-кода</li>
+            <li>Расширение выразительных возможностей языка</li>
+            <li>Создание быстрых DSL</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Синтаксис Elixir построен на макросах</h2>
+          <ul>
+            <li><code>defmodule</code> / <code>def</code> / <code>defp</code></li>
+            <li><code>defstruct</code> / <code>defrecord</code> </li>
+            <li><code>defprotocol</code> / <code>defimpl</code></li>
+            <li><code>defoverridable</code> / <code>defdelegate</code></li>
+            <li><code>if</code> / <code>unless</code></li>
+            <li><code>with</code> / <code>for</code></li>
+            <li><code>alias</code> / <code>require</code> / <code>import</code></li>
+            <li>etc.</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Ещё примеры макросов</h2>
+          <ul>
+            <li>Превосходная поддержка Unicode в Elixir</li>
+            <li>ExUnit</li>
+            <li>Ecto.Query</li>
+            <li>Router DSL в Phoenix</li>
+            <li>etc.</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Вспомогательные макросы</h2>
+          <ul>
+            <li><code>quote</code> преобразует выражение в AST
+              <div>&nbsp;</div>
+            </li>
+            <li>
+               
+              <code>unquote</code> вставляет значение внутрь quote-блока
+              <div>&nbsp;</div>
+            </li>
+            <li>
+               
+              <code>unquote_splicing</code> вставляет список как набор значений внутрь quote-блока
+            </li>
+          </ul>
+        </section>
+        <section>
+          <h2><code>quote</code></h2>
+          <div>
+            <p>AST-представление выражения в Elixir - это кортеж.</p>
+          </div>
+          <div>
+            <p>Простое выражение:</p>
+            <pre><code class="elixir">iex(1)> quote do: rem(5, 2)
+{:rem, [context: Elixir, import: Kernel], [5, 2]}</code></pre>
+          </div>
+          <div class="fragment">
+            <p>И чуть посложнее:</p>
+            <pre><code class="elixir">iex(2)> quote do 
+...(2)>   if age >= 18 do
+...(2)>     :ok
+...(2)>   else
+...(2)>     :error
+...(2)>   end  
+...(2)> end
+{:if, [context: Elixir, import: Kernel],
+ [{:>=, [context: Elixir, import: Kernel], [{:age, [], Elixir}, 18]},
+  [do: :ok, else: :error]]}</code></pre>
+          </div>
+        </section>
+        <section>
+          <h2><code>unquote</code></h2>
+          <pre><code class="elixir">iex(1)> a = 7
+iex(2)> ast = quote do 
+...(2)>   a * 6
+...(2)> end
+{:*, [context: Elixir, import: Kernel], [{:a, [], Elixir}, 6]}
+iex(3)> Code.eval_quoted(ast)
+** (CompileError) nofile:1: undefined function a/0</code></pre>
+          <div data-transition="fade-in slide-out" class="fragment">
+            <pre><code class="elixir">iex(1)> a = 7
+iex(2)> ast = quote do 
+...(2)>   unquote(a) * 6
+...(2)> end
+{:*, [context: Elixir, import: Kernel], [7, 6]}
+iex(3)> Code.eval_quoted(ast)
+{42, []}</code></pre>
+          </div>
+          <div data-transition="fade-in slide-out" class="fragment">
+            <pre><code class="elixir">iex(1)> a = 7
+iex(2)> "#{a} * 6"
+"7 * 6"</code></pre>
+          </div>
+        </section>
+        <section>
+          <h2><code>unquote_splicing</code></h2>
+          <pre><code class="elixir">iex(1)> args = ["a,b,c", ","]
+iex(2)> ast = quote do
+...(2)>   String.split(unquote(args))
+...(2)> end
+iex(3)> Code.eval_quoted(ast)
+** (FunctionClauseError) no function clause matching in String.Break.split/1
+    (elixir) unicode/unicode.ex:428: String.Break.split(["a,b,c", ","])</code></pre>
+          <div data-transition="fade-in slide-out" class="fragment">
+            <pre><code class="elixir">iex(1)> args = ["a,b,c", ","]
+iex(2)> ast = quote do
+...(2)>   String.split(unquote_splicing(args))
+...(2)> end
+iex(3)> Code.eval_quoted(ast)
+{["a", "b", "c"], []}</code></pre>
+          </div>
+          <div data-transition="fade-in slide-out" class="fragment">
+            <pre><code class="elixir">defmacro list_to_tuple(list) do
+  quote do
+    { unquote_splicing(list) }
+  end
+end
+list_to_tuple([1, 2, 3]) # => {1, 2, 3}</code></pre>
+          </div>
+        </section>
+        <section>
+          <h2><code>__using__</code></h2>
+          <pre><code class="elixir">defmodule MyApp.Company do
+  use MyApp.Web, :model  # invokes __using__ hook
+  # ...
+end</code></pre>
+          <pre><code class="elixir"># web/web.ex
+defmodule MyApp.Web
+  defmacro __using__(which) when is_atom(which) do
+    apply(__MODULE__, which, [])
+  end
+
+  def model do
+    quote do
+      use Ecto.Schema
+
+      import Ecto
+      import Ecto.Changeset
+      import Ecto.Query
+    end
+  end
+  # ...
+end</code></pre>
+        </section>
+        <section>
+          <h2>Основные приёмы</h2><br>
+          <ol>
+            <li>
+               
+              Code Interpolation
+              <div>вставляем фрагменты кода в другой код</div><br>
+            </li>
+            <li>
+               
+              AST Transformation
+              <div>трансформируем одно дерево в другое</div><br>
+            </li>
+            <li>
+               
+              Macro Substitution
+              <div>заменяем определенные ветки или листья в AST</div><br>
+            </li>
+          </ol>
+        </section>
+        <section>
+          <h3>Задача: выборочный профайлинг кода</h3>
+          <p>Ожидаемый результат:</p>
+          <pre><code class="elixir">def super_function do
+  # some code
+  # ...
+  newrelic_trace("PageController.index", :other, "super_function") do
+    # потенциально медленный код
+  end
+end</code></pre>
+        </section>
+        <section data-transition="fade-in slide-out">
+          <h2>Code Interpolation</h2>
+          <pre><code class="elixir">defmacro newrelic_trace(transaction, category, segment_name, do: block) do
+  quote do
+    # вычисляем реальное значение блока и время его исполнения
+    {elapsed, result} = :timer.tc fn -> unquote(block) end
+    data = {unquote(category), unquote(segment_name)}
+    NewRelic.Collector.record_value({unquote(transaction), data}, elapsed)
+    # возвращаем значение исходного блока
+    result
+  end
+end</code></pre>
+        </section>
+        <section>
+          <h3>Задача: новый синтаксис для лямбда-функций</h3>
+          <p>Примеры: список квадратов и сумма квадратов</p>
+          <pre><code class="elixir">Enum.map(1..5, fn(x) -> x*x end) # => [1, 4, 9, 16, 25]
+Enum.reduce(1..5, 0, fn(x, acc) -> acc+x*x end) # => 55</code></pre>
+          <div class="fragment">
+            <p>как-то покороче</p>
+            <pre><code class="elixir">Enum.map(1..5, &(&1*&1)) # => [1, 4, 9, 16, 25]
+Enum.reduce(1..5, 0, &(&2+&1*&1)) # => 55</code></pre>
+          </div>
+          <div class="fragment">
+            <p>a что если так?</p>
+            <pre><code class="elixir">Enum.map(1..5, x ~> x*x) # => [1, 4, 9, 16, 25]
+Enum.reduce(1..5, 0, {x, acc} ~> acc+x*x) # => 55</code></pre>
+          </div>
+        </section>
+        <section data-transition="fade-in slide-out">
+          <h2>AST Transformation</h2>
+          <pre><code class="elixir">defmacro args ~> body do
+  args = case args do
+    # {x} ~> x+1
+    {:{}, _, arg} -> arg
+    # x ~> x+1
+    {var, _, nil} when is_atom(var) -> [args]
+    # {x, y} ~> x+y
+    _ -> Tuple.to_list(args)
+  end
+  {:fn, [], [{:->, [], [args, body]}]}
+end</code></pre>
+        </section>
+        <section>
+          <h3>Задача: DSL для фрагментов HTML</h3>
+          <p>Ожидаемый результат:</p>
+          <pre><code class="elixir">html_fragment do
+  h1 do: "Header"
+  div do
+    p do: "foo"
+    br
+    p do: "bar"
+  end
+end</code></pre>
+          <pre><code class="elixir"># => "&lt;h1&gt;Header&lt;/h1&gt;&lt;div&gt;&lt;p&gt;foo&lt;/p&gt;&lt;br /&gt;&lt;p&gt;bar&lt;/p&gt;&lt;/div&gt;"</code></pre>
+        </section>
+        <section data-transition="fade-in slide-out">
+          <h2>Общая функция</h2>
+          <pre><code class="elixir">def tag(name, self_closing, do: content) do
+  if self_closing do
+    "&lt;#{name} /&gt;"  
+  else
+    "&lt;#{name}&gt;#{content}&lt;/#{name}&gt;"  
+  end
+end</code></pre>
+        </section>
+        <section data-transition="fade-in slide-out">
+          <h2>Сам макрос</h2>
+          <pre><code class="elixir">defmacro html_fragment(do: ast) do
+  new_ast = Macro.prewalk(ast, &substitute_html_elements/1)
+  quote do
+    to_string(unquote(new_ast))
+  end
+end</code></pre>
+        </section>
+        <section data-transition="fade-in slide-out">
+          <h2>Не хватает немного магии</h2>
+          <pre><code class="elixir">defp substitute_html_elements({:__block__, _, elems}) do
+  elems
+end
+defp substitute_html_elements({tag_name, meta, args}) do
+  cond do
+    tag_name in [:h1, :p, :div, :table, :tr, :td] ->
+      {:tag, meta, [tag_name, false | args]}
+    tag_name in [:br, :hr] ->
+      {:tag, meta, [tag_name, true, [do: nil]]}
+    true ->
+      {tag_name, meta, args}
+  end
+end
+defp substitute_html_elements(other) do
+  other
+end</code></pre>
+          <div class="fragment">
+            <p style="font-size: 75%">Полный код примера: https://github.com/romul/html_fragments</p>
+          </div>
+        </section>
+        <section>
+          <h2>Мы рассмотрели</h2>
+          <ul>
+            <li>Основы работы с макросами в Elixir</li>
+            <li>Трансформацию AST-представления</li>
+            <li>Создание собственного DSL</li>
+            <li>На примерах убедились, что писать макросы достаточно просто даже для нетривиальных задач</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Что ещё изучить?</h2>
+          <ul>
+            <li>Отладка и тестирование макросов</li>
+            <li>Работа с атрибутами модуля</li>
+            <li>Гигиена макросов</li>
+            <li>Compile-time hooks</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Warning</h2>
+          <p>Большие возможности - это и большая ответственность.</p>
+          <p>Не пишите макросы там, где можно обойтись обычными функциями.</p>
+        </section>
+        <section>
+          <section>
+            <h2>Спасибо за внимание!</h2>
+            <div class="fragment">
+              <h3>Материалы по теме</h3>
+              <ul style="width:100%">
+                <li> <a href="http://pragprog.com/book/cmelixir/metaprogramming-elixir">Книга "Metaprogramming Elixir" © Chris McCord</a><br>goo.gl/1hL6QP</li>
+                <li><a href="http://theerlangelist.com/article/macros_1">Цикл статей "Understanding Elixir macros" © Saša Jurić  </a><br>goo.gl/LbVGmR</li>
+                <li><a href="http://elixir-lang.org/docs/stable/elixir/Macro.html" target="_blank">Документация модуля Macro</a><br>goo.gl/UGkUxA</li>
+              </ul>
+            </div>
+          </section>
+        </section>
+      </div>
+    </div>
+    <script src="components/headjs/dist/1.0.0/head.min.js"></script>
+    <script src="components/reveal.js/js/reveal.js"></script>
+    <script>
+      Reveal.initialize({
+        controls: true,
+        progress: true,
+        history: true,
+        center: true,
+      
+        transition: 'slide', // none/fade/slide/convex/concave/zoom
+        // link(rel="stylesheet" href="components/reveal.js/css/print/pdf.css")
+      
+        dependencies: [
+          { src: 'components/reveal.js/plugin/markdown/marked.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'components/reveal.js/plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'components/reveal.js/plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+          { src: 'components/reveal.js/plugin/zoom-js/zoom.js', async: true },
+          { src: 'components/reveal.js/plugin/notes/notes.js', async: true }
+        ]
+      });
+    </script>
+    <script>
+      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+      })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+      
+      ga('create', 'UA-40262798-2', 'auto');
+      ga('send', 'pageview');
+    </script>
+  </body>
+</html>
